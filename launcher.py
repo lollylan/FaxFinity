@@ -35,10 +35,24 @@ def wait_and_open_browser(port, max_wait=30):
     webbrowser.open(url)
 
 
+def find_python():
+    """Finde den Python-Interpreter (nicht die EXE selbst!)."""
+    if not getattr(sys, "frozen", False):
+        return sys.executable
+
+    # Wenn als EXE: Python aus PATH suchen
+    import shutil
+    for name in ["python", "python3", "py"]:
+        path = shutil.which(name)
+        if path:
+            return path
+
+    return "python"  # Fallback, hoffend dass es im PATH ist
+
+
 def main():
     # Bestimme den Pfad zum Skript
     if getattr(sys, "frozen", False):
-        # Wenn als EXE ausgeführt
         base_dir = os.path.dirname(sys.executable)
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -51,17 +65,19 @@ def main():
         input("Drücke Enter zum Beenden...")
         sys.exit(1)
 
+    python_exe = find_python()
     port = 8501
 
     print("=" * 60)
-    print("  📠 FaxFinity v1.0")
-    print("  Intelligente Fax-Archivierung für Arztpraxen")
+    print("  FaxFinity v1.0")
+    print("  Intelligente Fax-Archivierung fuer Arztpraxen")
     print("=" * 60)
     print()
-    print(f"  Starte Server auf http://localhost:{port}")
-    print(f"  Der Browser öffnet sich gleich automatisch...")
+    print(f"  Python: {python_exe}")
+    print(f"  Server: http://localhost:{port}")
+    print(f"  Der Browser oeffnet sich gleich automatisch...")
     print()
-    print("  Zum Beenden: Dieses Fenster schließen oder Strg+C drücken")
+    print("  Zum Beenden: Dieses Fenster schliessen oder Strg+C")
     print("=" * 60)
 
     # Browser-Öffnung in Hintergrund-Thread
@@ -76,7 +92,7 @@ def main():
     try:
         subprocess.run(
             [
-                sys.executable, "-m", "streamlit", "run",
+                python_exe, "-m", "streamlit", "run",
                 script_path,
                 "--server.headless", "true",
                 "--server.port", str(port),
@@ -88,9 +104,9 @@ def main():
     except KeyboardInterrupt:
         print("\n\nFaxFinity beendet.")
     except FileNotFoundError:
-        print("\nFEHLER: Streamlit ist nicht installiert!")
-        print("Bitte installiere die Abhängigkeiten:")
-        print("  pip install -r requirements.txt")
+        print(f"\nFEHLER: Python nicht gefunden unter: {python_exe}")
+        print("Bitte installiere Python 3.10+ und stelle sicher,")
+        print("dass 'Add Python to PATH' aktiviert ist.")
         input("\nDrücke Enter zum Beenden...")
         sys.exit(1)
 
