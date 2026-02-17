@@ -86,6 +86,7 @@ def main():
     with open(installer_bat, "w", encoding="utf-8") as f:
         f.write('@echo off\n')
         f.write('chcp 65001 >nul\n')
+        f.write('cd /d "%~dp0"\n')
         f.write('echo.\n')
         f.write('echo ============================================================\n')
         f.write('echo   FaxFinity - Erstinstallation\n')
