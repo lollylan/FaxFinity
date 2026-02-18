@@ -107,7 +107,21 @@ def main():
         return
 
     st_version = check.stdout.strip()
+
+    # Freien Port finden (8501 bevorzugt, sonst nächsten freien)
     port = 8501
+    for try_port in range(8501, 8511):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("", try_port))
+                port = try_port
+                break
+        except OSError:
+            continue
+    else:
+        print("  FEHLER: Kein freier Port zwischen 8501-8510 gefunden!")
+        print("  Bitte schliesse andere Streamlit-Instanzen.")
+        return
 
     print(f"  Streamlit v{st_version} gefunden")
     print(f"  Server:  http://localhost:{port}")
