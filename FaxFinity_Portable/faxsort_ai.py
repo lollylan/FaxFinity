@@ -21,7 +21,7 @@ import uuid
 import threading
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 
 import requests
@@ -1110,33 +1110,66 @@ def main():
             <div class="info-box">
                 📡 <strong>Auto-Scan</strong> prüft den Eingangsordner alle 
                 <strong>{cfg['scan_interval']} Sekunden</strong> automatisch auf neue PDFs.
-                Nutze den Button rechts, um den automatischen Modus zu starten.
+                Nutze den Schalter rechts, um den automatischen Modus zu starten/stoppen.
             </div>
             """, unsafe_allow_html=True)
 
         with auto_col2:
-            auto_scan = st.toggle("Auto-Scan aktiv", value=False, key="auto_scan_toggle")
+            # Auto-Scan Status aus Config laden (überlebt Browser-Reload)
+            if "auto_scan_active" not in st.session_state:
+                st.session_state.auto_scan_active = cfg.get("auto_scan_active", False)
+
+            auto_scan = st.toggle(
+                "Auto-Scan aktiv",
+                value=st.session_state.auto_scan_active,
+                key="auto_scan_toggle",
+            )
+
+            # Bei Änderung: sofort in Config speichern
+            if auto_scan != st.session_state.auto_scan_active:
+                st.session_state.auto_scan_active = auto_scan
+                cfg["auto_scan_active"] = auto_scan
+                save_config(cfg)
+            else:
+                st.session_state.auto_scan_active = auto_scan
 
         if auto_scan and ready:
             st.markdown(
                 '<span class="status-badge status-online">🟢 Auto-Scan aktiv</span>',
                 unsafe_allow_html=True,
             )
-            placeholder = st.empty()
-            while auto_scan:
-                with placeholder.container():
-                    st.markdown(
-                        f"⏳ Nächster Scan: `{datetime.now().strftime('%H:%M:%S')}` – "
-                        f"Intervall: {cfg['scan_interval']}s"
-                    )
+
+            # Zeitstempel für letzten Scan
+            if "last_auto_scan" not in st.session_state:
+                st.session_state.last_auto_scan = 0.0
+
+            now = time.time()
+            elapsed = now - st.session_state.last_auto_scan
+            interval = cfg["scan_interval"]
+
+            if elapsed >= interval:
+                # Scan durchführen
+                st.session_state.last_auto_scan = time.time()
+                with st.spinner("🔍 Auto-Scan läuft..."):
                     results = scan_and_process(cfg)
-                    if results:
-                        successes = sum(1 for r in results if r["status"] == "success")
-                        st.success(f"✅ {successes}/{len(results)} verarbeitet.")
-                    else:
-                        st.info("Keine neuen PDFs.")
-                time.sleep(cfg["scan_interval"])
-                st.rerun()
+                if results:
+                    successes = sum(1 for r in results if r["status"] == "success")
+                    st.success(f"✅ {successes}/{len(results)} verarbeitet um {datetime.now().strftime('%H:%M:%S')}")
+                else:
+                    st.info(f"Keine neuen PDFs ({datetime.now().strftime('%H:%M:%S')})")
+
+            # Countdown bis zum nächsten Scan
+            remaining = max(0, int(interval - (time.time() - st.session_state.last_auto_scan)))
+            next_scan = datetime.now() + timedelta(seconds=remaining)
+            st.markdown(
+                f"⏳ Nächster Scan in **{remaining}s** "
+                f"(um {next_scan.strftime('%H:%M:%S')}) — "
+                f"Intervall: {interval}s"
+            )
+
+            # Auto-Rerun nach Intervall
+            time.sleep(min(remaining + 1, interval))
+            st.rerun()
 
     with tab_log:
         st.markdown("#### 📋 Letzte Verarbeitungen")
