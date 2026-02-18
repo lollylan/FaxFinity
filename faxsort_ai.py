@@ -1115,16 +1115,23 @@ def main():
             """, unsafe_allow_html=True)
 
         with auto_col2:
-            # Persistenter Toggle über session_state
+            # Auto-Scan Status aus Config laden (überlebt Browser-Reload)
             if "auto_scan_active" not in st.session_state:
-                st.session_state.auto_scan_active = False
+                st.session_state.auto_scan_active = cfg.get("auto_scan_active", False)
 
             auto_scan = st.toggle(
                 "Auto-Scan aktiv",
                 value=st.session_state.auto_scan_active,
                 key="auto_scan_toggle",
             )
-            st.session_state.auto_scan_active = auto_scan
+
+            # Bei Änderung: sofort in Config speichern
+            if auto_scan != st.session_state.auto_scan_active:
+                st.session_state.auto_scan_active = auto_scan
+                cfg["auto_scan_active"] = auto_scan
+                save_config(cfg)
+            else:
+                st.session_state.auto_scan_active = auto_scan
 
         if auto_scan and ready:
             st.markdown(
