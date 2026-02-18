@@ -1167,10 +1167,6 @@ def main():
                 f"Intervall: {interval}s"
             )
 
-            # Auto-Rerun nach Intervall
-            time.sleep(min(remaining + 1, interval))
-            st.rerun()
-
     with tab_log:
         st.markdown("#### 📋 Letzte Verarbeitungen")
         log_entries = load_processing_log()
@@ -1261,6 +1257,15 @@ def main():
                             pass
                     st.success(f"✅ {moved} Datei(en) zurück in Eingang verschoben. Starte Scan neu.")
                     st.rerun()
+
+    # ── Auto-Scan Timer (NACH allen Tabs, damit Log + Ordner gerendert werden) ──
+    if (st.session_state.get("auto_scan_active", False)
+            and cfg.get("eingangsordner") and os.path.isdir(cfg.get("eingangsordner", ""))):
+        interval = cfg.get("scan_interval", 120)
+        last_scan = st.session_state.get("last_auto_scan", 0.0)
+        remaining = max(0, int(interval - (time.time() - last_scan)))
+        time.sleep(min(remaining + 1, interval))
+        st.rerun()
 
 
 if __name__ == "__main__":
