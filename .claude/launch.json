@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "faxfinity",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "faxfinity", "--ohne-browser", "--port", "8757"],
+      "port": 8757
+    }
+  ]
+}

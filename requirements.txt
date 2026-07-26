@@ -1,0 +1,17 @@
+# Weboberfläche und Hintergrunddienst
+fastapi>=0.110
+uvicorn>=0.27
+
+# PDF lesen und Seiten rendern
+PyMuPDF>=1.24
+
+# Bildaufbereitung vor der Texterkennung
+Pillow>=10.0
+numpy>=1.26
+
+# Ollama-Schnittstelle
+requests>=2.31
+
+# Texterkennung läuft über das Programm tesseract.exe, nicht über ein Python-Paket:
+#   winget install UB-Mannheim.TesseractOCR
+# Die deutschen Sprachdaten liegen im Ordner tessdata/best neben der Anwendung.

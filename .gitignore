@@ -1,0 +1,36 @@
+# Laufzeitdaten einer Installation. Gehören nicht ins Repository, weil sie
+# Praxisdaten und Patientennamen enthalten können.
+einstellungen.json
+journal.jsonl
+faxfinity.lock
+config.json
+processing_log.json
+
+# Faxordner, falls jemand direkt im Projektordner arbeitet
+Eingang/
+Archiv/
+Umbenannt/
+Fehler/
+Testordner/
+
+# Eingescannte Dokumente gehören grundsätzlich nicht ins Repository, egal wo
+# sie liegen. Echte Faxe sind hier schon einmal versehentlich gelandet.
+*.pdf
+*.tif
+*.tiff
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Werkzeuge
+.pytest_cache/
+.vscode/
+.idea/
