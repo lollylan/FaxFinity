@@ -29,6 +29,9 @@ BEVORZUGTE_MODELLE = [
     "gemma3:12b",
 ]
 
+# Das Modell, das FaxFinity bei einer frischen Installation von sich aus lädt.
+EMPFOHLENES_MODELL = BEVORZUGTE_MODELLE[0]
+
 # Antworten wie "nicht erkennbar" hat die Vorgängerversion wörtlich in die
 # Dateinamen übernommen ("..._nicht_erkannt.pdf"). Hier fliegen sie raus.
 LEERANTWORTEN = {
@@ -195,6 +198,20 @@ def _fachrichtung_saeubern(wert) -> str:
     return gekuerzt if len(gekuerzt) >= 4 else wert
 
 
+def passendes_modell(vorhanden: list[str]) -> str:
+    """Das am besten geeignete aus einer Liste installierter Modelle.
+
+    Leerer Text heißt: nichts Brauchbares dabei. Verglichen wird auch mit
+    Namenszusätzen wie "qwen3:8b-q4_K_M", die dasselbe Modell in anderer
+    Quantisierung bezeichnen.
+    """
+    for bevorzugt in BEVORZUGTE_MODELLE:
+        for name in vorhanden:
+            if name == bevorzugt or name.startswith(bevorzugt + "-"):
+                return name
+    return ""
+
+
 class Ollama:
     def __init__(
         self,
@@ -237,13 +254,51 @@ class Ollama:
         if self.modell:
             logger.warning("Modell '%s' ist nicht installiert", self.modell)
 
-        for bevorzugt in BEVORZUGTE_MODELLE:
-            for name in vorhanden:
-                if name == bevorzugt or name.startswith(bevorzugt + "-"):
-                    return name
+        gefunden = passendes_modell(vorhanden)
+        if gefunden:
+            return gefunden
         if vorhanden:
             return vorhanden[0]
         raise OllamaFehler("In Ollama ist kein Modell installiert")
+
+    def herunterladen(self, modell: str, melden=None) -> None:
+        """Ein Modell in Ollama laden und den Fortschritt weitermelden.
+
+        `melden` bekommt jeden Zwischenstand als Wörterbuch, so wie Ollama ihn
+        schickt: `status` immer, bei laufendem Download zusätzlich `digest`,
+        `completed` und `total`. Ohne diese Rückmeldung stünde die Oberfläche
+        minutenlang still, während im Hintergrund 5 GB fließen.
+
+        Die Anfrage nennt das Modell in beiden Schreibweisen: ältere Ollama-
+        Fassungen erwarten `name`, neuere `model`. Das überzählige Feld wird
+        jeweils ignoriert.
+        """
+        try:
+            antwort = requests.post(
+                f"{self.url}/api/pull",
+                json={"model": modell, "name": modell, "stream": True},
+                stream=True,
+                # Zwischen zwei Zwischenständen darf Zeit vergehen: das Prüfen
+                # der Prüfsumme einer 5-GB-Datei meldet minutenlang nichts.
+                timeout=(10, 300),
+            )
+            antwort.raise_for_status()
+
+            for zeile in antwort.iter_lines(decode_unicode=True):
+                if not zeile:
+                    continue
+                try:
+                    stand = json.loads(zeile)
+                except json.JSONDecodeError:
+                    continue
+                if stand.get("error"):
+                    raise OllamaFehler(str(stand["error"]))
+                if melden:
+                    melden(stand)
+        except requests.exceptions.Timeout as fehler:
+            raise OllamaFehler("Zeitüberschreitung beim Herunterladen") from fehler
+        except requests.RequestException as fehler:
+            raise OllamaFehler(f"Herunterladen fehlgeschlagen: {fehler}") from fehler
 
     # ── Auswertung ────────────────────────────────────────────────────────
     def auswerten(

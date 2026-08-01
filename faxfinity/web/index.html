@@ -60,14 +60,28 @@
   }
   @keyframes dreh { to { transform: rotate(360deg); } }
 
-  button {
+  button, a.knopf {
     font: inherit; font-weight: 550; padding: 8px 16px; border-radius: 7px;
     border: 1px solid var(--rand); background: var(--karte); color: var(--text); cursor: pointer;
   }
-  button:hover { border-color: var(--akzent); color: var(--akzent); }
-  button.haupt { background: var(--akzent); border-color: var(--akzent); color: #fff; }
-  button.haupt:hover { filter: brightness(1.08); color: #fff; }
+  a.knopf { display: inline-block; text-decoration: none; }
+  button:hover, a.knopf:hover { border-color: var(--akzent); color: var(--akzent); }
+  button.haupt, a.knopf.haupt { background: var(--akzent); border-color: var(--akzent); color: #fff; }
+  button.haupt:hover, a.knopf.haupt:hover { filter: brightness(1.08); color: #fff; }
   button:disabled { opacity: .5; cursor: default; filter: none; }
+  button.leise { border-color: transparent; color: var(--gedaempft); padding: 8px 10px; }
+  button.leise:hover { border-color: var(--schlecht); color: var(--schlecht); }
+
+  /* Einrichtung */
+  .schritt { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--rand); }
+  .schritt:first-child { border-top: none; padding-top: 0; }
+  .schritt .inhalt { flex: 1; min-width: 0; }
+  .schritt b { display: block; font-size: 14px; }
+  .schritt span { font-size: 13px; color: var(--gedaempft); overflow-wrap: anywhere; }
+  .schritt .tat { flex: none; }
+  .balken { height: 7px; border-radius: 99px; background: var(--rand); overflow: hidden; margin-top: 9px; }
+  .balken > i { display: block; height: 100%; background: var(--akzent); transition: width .5s ease; }
+  .einleitung { font-size: 13.5px; color: var(--gedaempft); margin: -4px 0 14px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   th {
@@ -156,6 +170,12 @@
     <span class="version" id="version"></span>
   </header>
 
+  <div class="karte" id="karteEinrichtung" hidden>
+    <h2>Einrichtung</h2>
+    <p class="einleitung">Bevor Faxe verarbeitet werden können, muss das hier bereitstehen.</p>
+    <div id="schritte"></div>
+  </div>
+
   <div class="karte">
     <h2>Systemzustand</h2>
     <div class="ampeln" id="ampeln"><div class="leer">wird geprüft …</div></div>
@@ -167,7 +187,11 @@
     <div id="laufband"></div>
     <div class="fussleiste">
       <button class="haupt" id="knopfPruefen">Eingang jetzt prüfen</button>
+      <label class="schalter" title="Legt eine Verknüpfung im Autostart-Ordner an">
+        <input type="checkbox" id="knopfAutostart"> beim Anmelden mitstarten
+      </label>
       <span class="meldung" id="betriebsmeldung"></span>
+      <button class="leise" id="knopfBeenden" style="margin-left:auto">FaxFinity beenden</button>
     </div>
   </div>
 
@@ -276,6 +300,108 @@ async function systemZeichnen() {
   }
 }
 
+// ── Einrichtung ──────────────────────────────────────────────────────────
+// Die Karte zeigt sich nur, solange noch etwas fehlt. Ist alles beisammen,
+// verschwindet sie -- eine eingerichtete Praxis soll davon nichts mehr sehen.
+let einrichtungOffen = false;
+let einrichtungFehler = "";
+
+function menge(bytes) {
+  if (!bytes) return "";
+  return bytes >= 1e9 ? (bytes / 1e9).toFixed(1) + " GB" : Math.round(bytes / 1e6) + " MB";
+}
+
+function schritt(titel, zustand, tat, zusatz) {
+  return `<div class="schritt">
+    <div class="punkt ${zustand.bereit ? "gut" : "schlecht"}"></div>
+    <div class="inhalt">
+      <b>${titel}</b><span>${sicher(zustand.meldung)}</span>
+      ${zusatz || ""}
+    </div>
+    <div class="tat">${tat || ""}</div>
+  </div>`;
+}
+
+async function einrichtungZeichnen() {
+  let e;
+  try {
+    e = await hole("/api/einrichtung");
+  } catch {
+    return;
+  }
+  const laden = e.modell.laden || {};
+  einrichtungOffen = !e.fertig || laden.laeuft;
+  $("karteEinrichtung").hidden = !einrichtungOffen;
+  $("knopfAutostart").checked = !!e.autostart;
+  if (!einrichtungOffen) return;
+
+  // Ollama
+  let ollamaTat = "";
+  let ollamaZusatz = "";
+  if (!e.ollama.bereit && e.ollama.installiert) {
+    ollamaTat = `<button class="haupt" id="knopfOllama">Ollama starten</button>`;
+  } else if (!e.ollama.bereit) {
+    ollamaTat = `<a class="knopf haupt" href="${sicher(e.bezugsquellen.ollama)}"
+      target="_blank" rel="noopener">Ollama herunterladen</a>`;
+    ollamaZusatz = `<div class="warnung">Herunterladen, installieren, fertig — alles
+      Weitere erledigt FaxFinity von selbst. Diese Seite bleibt so lange offen.</div>`;
+  }
+
+  // Sprachmodell
+  let modellTat = "";
+  let modellZusatz = "";
+  if (laden.laeuft) {
+    modellZusatz = `<div class="balken"><i style="width:${laden.prozent}%"></i></div>
+      <span>${sicher(laden.phase)} — ${laden.prozent} %${
+        laden.gesamt ? ` (${menge(laden.geladen)} von ${menge(laden.gesamt)})` : ""}</span>`;
+  } else if (laden.fehler) {
+    modellZusatz = `<div class="warnung">${sicher(laden.fehler)}</div>`;
+  }
+  if (!e.modell.bereit && !laden.laeuft && e.ollama.bereit) {
+    modellTat = `<button class="haupt" id="knopfModell">Jetzt laden</button>`;
+  }
+
+  const teile = [
+    schritt("Ollama", e.ollama, ollamaTat, ollamaZusatz),
+    schritt("Sprachmodell", e.modell, modellTat, modellZusatz),
+  ];
+  if (!e.ocr.bereit) {
+    teile.push(schritt("Texterkennung", e.ocr,
+      `<a class="knopf" href="${sicher(e.bezugsquellen.tesseract)}"
+        target="_blank" rel="noopener">Tesseract holen</a>`));
+  }
+
+  if (einrichtungFehler) {
+    teile.push(`<div class="schritt"><div class="inhalt">
+      <div class="warnung">${sicher(einrichtungFehler)}</div></div></div>`);
+  }
+  $("schritte").innerHTML = teile.join("");
+
+  const starten = $("knopfOllama");
+  if (starten) starten.onclick = async (ev) => {
+    ev.target.disabled = true;
+    ev.target.textContent = "Ollama startet …";
+    einrichtungFehler = "";
+    try { await hole("/api/einrichtung/ollama-starten", { method: "POST" }); }
+    catch (f) { einrichtungFehler = f.message; }
+    await einrichtungZeichnen();
+  };
+
+  const modellKnopf = $("knopfModell");
+  if (modellKnopf) modellKnopf.onclick = async (ev) => {
+    ev.target.disabled = true;
+    einrichtungFehler = "";
+    try {
+      await hole("/api/einrichtung/modell-laden", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+    } catch (f) { einrichtungFehler = f.message; }
+    await einrichtungZeichnen();
+  };
+}
+
 async function zustandZeichnen() {
   const z = await hole("/api/zustand");
   const d = z.dienst, k = z.kennzahlen;
@@ -291,12 +417,17 @@ async function zustandZeichnen() {
 
   $("laufband").innerHTML = d.beschaeftigt
     ? `<div class="laufband"><div class="dreher"></div><span>Verarbeite <b>${sicher(d.aktuelle_datei)}</b> …</span></div>`
+    : d.wartegrund
+    ? `<div class="laufband"><div class="dreher"></div><span>${sicher(d.wartegrund)}</span></div>`
     : "";
 
   const meldung = $("betriebsmeldung");
   if (!d.laeuft) {
     meldung.textContent = "Dienst läuft nicht";
     meldung.className = "meldung schlecht";
+  } else if (d.wartegrund) {
+    meldung.textContent = "";
+    meldung.className = "meldung";
   } else if (d.letzter_fehler) {
     meldung.textContent = d.letzter_fehler;
     meldung.className = "meldung schlecht";
@@ -452,16 +583,54 @@ $("knopfPruefen").onclick = async (e) => {
   setTimeout(() => { e.target.disabled = false; }, 1500);
 };
 
+$("knopfAutostart").onchange = async (e) => {
+  const gewuenscht = e.target.checked;
+  try {
+    const antwort = await hole("/api/autostart", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aktiv: gewuenscht }),
+    });
+    e.target.checked = !!antwort.aktiv;
+  } catch (f) {
+    e.target.checked = !gewuenscht;
+    const meldung = $("betriebsmeldung");
+    meldung.textContent = f.message;
+    meldung.className = "meldung schlecht";
+  }
+};
+
+let taktgeber = [];
+
+$("knopfBeenden").onclick = async () => {
+  if (!confirm("FaxFinity beenden? Eingehende Faxe werden dann nicht mehr verarbeitet.")) return;
+  for (const t of taktgeber) clearInterval(t);
+  taktgeber = [];
+  try { await hole("/api/beenden", { method: "POST" }); } catch { /* Verbindung endet dabei */ }
+  document.querySelector(".huelle").innerHTML = `<header><h1>FaxFinity</h1></header>
+    <div class="karte"><h2>Beendet</h2>
+    <p>FaxFinity läuft nicht mehr und verarbeitet keine Faxe.
+    Dieses Fenster kann geschlossen werden.</p></div>`;
+};
+
 async function takt() {
-  try { await zustandZeichnen(); await protokollZeichnen(); } catch { /* Netz kurz weg */ }
+  try {
+    await zustandZeichnen();
+    await protokollZeichnen();
+    // Während der Einrichtung -- besonders beim Herunterladen -- soll sich
+    // sichtbar etwas tun. Danach genügt der langsame Takt.
+    if (einrichtungOffen) await einrichtungZeichnen();
+  } catch { /* Netz kurz weg */ }
 }
 
 (async function start() {
   await systemZeichnen();
+  await einrichtungZeichnen();
   await einstellungenLaden();
   await takt();
-  setInterval(takt, 3000);
-  setInterval(systemZeichnen, 30000);
+  taktgeber.push(setInterval(takt, 3000));
+  taktgeber.push(setInterval(systemZeichnen, 30000));
+  taktgeber.push(setInterval(einrichtungZeichnen, 30000));
 })();
 </script>
 </body>

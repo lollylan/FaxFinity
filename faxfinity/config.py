@@ -27,9 +27,25 @@ def anwendungsordner() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def ressourcenordner() -> Path:
+    """Ordner mit dem, was mitgeliefert wird: Sprachdaten und Tesseract.
+
+    Das ist bewusst nicht derselbe Ordner wie oben. PyInstaller packt die
+    mitgelieferten Dateien in einen eigenen Programmordner (bei der Einzeldatei
+    sogar in ein Temporärverzeichnis, das nach dem Beenden verschwindet).
+    Dorthin gehört nichts geschrieben -- Einstellungen und Protokoll bleiben
+    deshalb neben der EXE.
+    """
+    gepackt = getattr(sys, "_MEIPASS", "")
+    if gepackt:
+        return Path(gepackt)
+    return Path(__file__).resolve().parent.parent
+
+
 KONFIG_DATEI = anwendungsordner() / "einstellungen.json"
 JOURNAL_DATEI = anwendungsordner() / "journal.jsonl"
 SPERR_DATEI = anwendungsordner() / "faxfinity.lock"
+PROTOKOLL_DATEI = anwendungsordner() / "faxfinity.log"
 
 # Kategorien, die das Modell wählen darf. Bewusst eine geschlossene Liste:
 # frei erfundene Kategorien haben in der Vorgängerversion zu Dateinamen wie

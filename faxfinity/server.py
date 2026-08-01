@@ -8,15 +8,17 @@ geöffnete Fenster lösen keine doppelte Verarbeitung aus.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import asdict, fields
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from . import __version__, ordnerbaum
+from . import __version__, autostart, ordnerbaum
 from .config import Einstellungen
 from .dienst import Dienst
+from .einrichtung import Einrichtung
 from .journal import Journal
 from .llm import Ollama
 from .ocr import OcrNichtVerfuegbar, Tesseract
@@ -24,14 +26,32 @@ from .ocr import OcrNichtVerfuegbar, Tesseract
 logger = logging.getLogger(__name__)
 
 OBERFLAECHE = Path(__file__).resolve().parent / "web" / "index.html"
+OCR_PUFFER_SEKUNDEN = 20
 
 
 def anwendung_bauen(
-    einstellungen: Einstellungen, protokoll: Journal, dienst: Dienst, konfigpfad: Path
+    einstellungen: Einstellungen,
+    protokoll: Journal,
+    dienst: Dienst,
+    konfigpfad: Path,
+    einrichtung: Einrichtung | None = None,
+    beenden=None,
 ) -> FastAPI:
     app = FastAPI(title="FaxFinity", docs_url=None, redoc_url=None)
     # Veränderlicher Behälter, damit gespeicherte Einstellungen sofort greifen.
     aktuell = {"einstellungen": einstellungen}
+    einrichtung = einrichtung or Einrichtung(einstellungen)
+    # Der Zustand der Texterkennung kostet zwei Tesseract-Aufrufe. Während des
+    # Modell-Downloads fragt die Oberfläche im Sekundentakt nach -- so oft muss
+    # dafür kein Prozess starten.
+    ocr_puffer: dict = {"zeit": 0.0, "stand": None}
+
+    def ocr_gepuffert() -> dict:
+        jetzt = time.monotonic()
+        if ocr_puffer["stand"] is None or jetzt - ocr_puffer["zeit"] > OCR_PUFFER_SEKUNDEN:
+            ocr_puffer["stand"] = _ocr_zustand(aktuell["einstellungen"])
+            ocr_puffer["zeit"] = jetzt
+        return ocr_puffer["stand"]
 
     @app.get("/", response_class=HTMLResponse)
     def oberflaeche() -> str:
@@ -96,7 +116,9 @@ def anwendung_bauen(
 
         neu.speichern(konfigpfad)
         aktuell["einstellungen"] = neu
+        ocr_puffer["stand"] = None  # der Tesseract-Pfad kann sich geändert haben
         dienst.einstellungen_uebernehmen(neu)
+        einrichtung.einstellungen_uebernehmen(neu)
         logger.info("Einstellungen gespeichert")
         return JSONResponse({"gespeichert": True})
 
@@ -115,9 +137,66 @@ def anwendung_bauen(
         einst = aktuell["einstellungen"]
         return {
             "ollama": _ollama_zustand(einst),
-            "ocr": _ocr_zustand(einst),
+            "ocr": ocr_gepuffert(),
             "ordner": _ordner_zustand(einst),
         }
+
+    # ── Einrichtung ───────────────────────────────────────────────────────
+    # Diese Schnittstelle beantwortet eine andere Frage als /api/system: nicht
+    # "läuft alles?", sondern "was muss ich noch tun, und was kann FaxFinity
+    # davon selbst erledigen?".
+    @app.get("/api/einrichtung")
+    def einrichtung_lesen() -> dict:
+        stand = einrichtung.zustand()
+        stand["ocr"] = ocr_gepuffert()
+        stand["autostart"] = autostart.eingerichtet()
+        stand["fertig"] = (
+            stand["ollama"]["bereit"] and stand["modell"]["bereit"] and stand["ocr"]["bereit"]
+        )
+        return stand
+
+    @app.post("/api/einrichtung/ollama-starten")
+    def ollama_starten() -> JSONResponse:
+        if einrichtung.ollama_starten():
+            return JSONResponse({"gestartet": True})
+        return JSONResponse(
+            {"fehler": "Ollama ließ sich nicht starten. Läuft es vielleicht auf einem anderen Rechner?"},
+            status_code=400,
+        )
+
+    @app.post("/api/einrichtung/modell-laden")
+    def modell_laden(daten: dict | None = None) -> JSONResponse:
+        # Ein zweiter Anstoß bei laufendem Download ist kein Fehler, sondern
+        # ein zweiter Klick -- der Fortschritt steht ohnehin in der Oberfläche.
+        return JSONResponse(
+            {"angestossen": einrichtung.modell_laden((daten or {}).get("modell", ""))}
+        )
+
+    @app.post("/api/autostart")
+    def autostart_setzen(daten: dict) -> JSONResponse:
+        aktiv = bool(daten.get("aktiv"))
+        if not autostart.setzen(aktiv):
+            return JSONResponse(
+                {"fehler": "Der Autostart ließ sich nicht ändern"}, status_code=400
+            )
+        logger.info("Autostart %s", "eingerichtet" if aktiv else "entfernt")
+        return JSONResponse({"aktiv": autostart.eingerichtet()})
+
+    @app.post("/api/beenden")
+    def anwendung_beenden() -> JSONResponse:
+        """FaxFinity ganz beenden.
+
+        In der EXE-Fassung gibt es kein Konsolenfenster mehr, das sich
+        schließen ließe -- ohne diesen Knopf käme man nicht mehr heraus.
+        """
+        if beenden is None:
+            return JSONResponse(
+                {"fehler": "Beenden ist in dieser Betriebsart nicht möglich"},
+                status_code=400,
+            )
+        logger.info("Beenden über die Oberfläche angefordert")
+        beenden()
+        return JSONResponse({"beendet": True})
 
     return app
 

@@ -1,23 +1,18 @@
 """FaxFinity beim Anmelden automatisch starten -- einrichten oder entfernen.
 
-Legt eine Verknüpfung im Autostart-Ordner an, die den Dienst ohne Fenster und
-ohne Browser startet. Die Oberfläche ist danach jederzeit unter
-http://127.0.0.1:8757 erreichbar.
+Wird von "Autostart einrichten.bat" aufgerufen. Die eigentliche Arbeit steht in
+faxfinity/autostart.py, damit die EXE-Fassung dasselbe über einen Schalter in
+der Oberfläche anbieten kann -- dort gibt es keine Eingabeaufforderung mehr.
 """
 
 from __future__ import annotations
 
-import os
-import subprocess
 import sys
 from pathlib import Path
 
-WURZEL = Path(__file__).resolve().parent.parent
-VERKNUEPFUNG = (
-    Path(os.environ["APPDATA"])
-    / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
-    / "FaxFinity.lnk"
-)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from faxfinity import autostart  # noqa: E402
 
 
 def schreiben(zeile: str = "") -> None:
@@ -25,33 +20,6 @@ def schreiben(zeile: str = "") -> None:
         print(zeile)
     except UnicodeEncodeError:
         print(zeile.encode("ascii", "replace").decode("ascii"))
-
-
-def pythonw() -> str:
-    """Der Interpreter ohne Konsolenfenster, damit nichts im Weg steht."""
-    ohne_fenster = Path(sys.executable).with_name("pythonw.exe")
-    return str(ohne_fenster if ohne_fenster.is_file() else sys.executable)
-
-
-def anlegen() -> bool:
-    skript = (
-        "$w = New-Object -ComObject WScript.Shell; "
-        f"$s = $w.CreateShortcut('{VERKNUEPFUNG}'); "
-        f"$s.TargetPath = '{pythonw()}'; "
-        "$s.Arguments = '-m faxfinity --ohne-browser'; "
-        f"$s.WorkingDirectory = '{WURZEL}'; "
-        "$s.Description = 'FaxFinity Hintergrunddienst'; "
-        "$s.Save()"
-    )
-    ergebnis = subprocess.run(
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command", skript],
-        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
-    )
-    if ergebnis.returncode != 0:
-        schreiben("  Fehler beim Anlegen der Verknuepfung:")
-        schreiben("  " + (ergebnis.stderr or "").strip()[:300])
-        return False
-    return VERKNUEPFUNG.is_file()
 
 
 def main() -> int:
@@ -63,22 +31,24 @@ def main() -> int:
     schreiben("==========================================")
     schreiben()
 
-    if VERKNUEPFUNG.is_file():
-        schreiben(f"  Der Autostart ist bereits eingerichtet:")
-        schreiben(f"  {VERKNUEPFUNG}")
+    if autostart.eingerichtet():
+        schreiben("  Der Autostart ist bereits eingerichtet:")
+        schreiben(f"  {autostart.VERKNUEPFUNG}")
         schreiben()
-        antwort = input("  Wieder entfernen? [j/N] ").strip().lower()
-        if antwort.startswith("j"):
-            VERKNUEPFUNG.unlink()
-            schreiben("  Autostart entfernt.")
+        if input("  Wieder entfernen? [j/N] ").strip().lower().startswith("j"):
+            schreiben("  Autostart entfernt." if autostart.entfernen()
+                      else "  Entfernen fehlgeschlagen.")
         else:
             schreiben("  Unveraendert gelassen.")
         return 0
 
-    if not anlegen():
+    if not autostart.einrichten():
+        schreiben("  Einrichten fehlgeschlagen (Einzelheiten oben).")
         return 1
 
+    ziel, argumente, _ = autostart.startbefehl()
     schreiben("  Autostart eingerichtet.")
+    schreiben(f"  Gestartet wird: {ziel} {argumente}")
     schreiben()
     schreiben("  FaxFinity laeuft ab dem naechsten Anmelden im Hintergrund.")
     schreiben("  Die Oberflaeche ist dann erreichbar unter:")

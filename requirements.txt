@@ -15,3 +15,7 @@ requests>=2.31
 # Texterkennung läuft über das Programm tesseract.exe, nicht über ein Python-Paket:
 #   winget install UB-Mannheim.TesseractOCR
 # Die deutschen Sprachdaten liegen im Ordner tessdata/best neben der Anwendung.
+
+# Zum Bauen der weitergebbaren EXE wird zusätzlich PyInstaller gebraucht. Es
+# steht bewusst nicht hier: für den Betrieb ist es unnötig, und
+# werkzeuge/exe_bauen.py installiert es bei Bedarf selbst.

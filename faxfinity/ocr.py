@@ -25,6 +25,7 @@ from pathlib import Path
 from PIL import Image
 
 from . import bild as bildhilfe
+from .config import anwendungsordner, ressourcenordner
 
 logger = logging.getLogger(__name__)
 
@@ -54,18 +55,24 @@ class OcrErgebnis:
 
 
 def finde_tesseract(vorgabe: str = "") -> str | None:
-    """Tesseract lokalisieren: Vorgabe, PATH, dann übliche Installationsorte."""
+    """Tesseract lokalisieren: Vorgabe, Mitgeliefertes, PATH, Installationsorte.
+
+    Das Mitgelieferte hat Vorrang vor einer Installation im System. In der
+    EXE-Fassung liegt Tesseract in bekannter Version im Programmordner; eine
+    daneben vorhandene, womöglich uralte Systeminstallation soll die nicht
+    verdrängen. Die ausdrückliche Vorgabe aus den Einstellungen sticht beides.
+    """
     if vorgabe and Path(vorgabe).is_file():
         return vorgabe
+
+    for wurzel in (ressourcenordner(), anwendungsordner()):
+        mitgeliefert = wurzel / "tesseract" / "tesseract.exe"
+        if mitgeliefert.is_file():
+            return str(mitgeliefert)
 
     imm_pfad = shutil.which("tesseract")
     if imm_pfad:
         return imm_pfad
-
-    # Neben der Anwendung mitgeliefert (portable Variante)
-    mitgeliefert = Path(__file__).resolve().parent.parent / "tools" / "tesseract" / "tesseract.exe"
-    if mitgeliefert.is_file():
-        return str(mitgeliefert)
 
     for pfad in SUCHPFADE:
         if pfad and Path(pfad).is_file():
@@ -79,14 +86,17 @@ def finde_sprachdaten(vorgabe: str = "") -> str | None:
     Die deutschen Sprachdaten liegen bewusst im Anwendungsordner und nicht unter
     "Program Files": so lässt sich FaxFinity ohne Administratorrechte einrichten,
     und die Installation von Tesseract selbst muss nicht angepasst werden.
+
+    Neben dem Programmordner wird auch der Ordner neben der EXE durchsucht --
+    dort lassen sich weitere Sprachen nachlegen, ohne neu zu bauen.
     """
     if vorgabe and (Path(vorgabe) / "deu.traineddata").is_file():
         return vorgabe
 
-    wurzel = Path(__file__).resolve().parent.parent
-    for kandidat in (wurzel / "tessdata" / "best", wurzel / "tessdata"):
-        if (kandidat / "deu.traineddata").is_file():
-            return str(kandidat)
+    for wurzel in (anwendungsordner(), ressourcenordner()):
+        for kandidat in (wurzel / "tessdata" / "best", wurzel / "tessdata"):
+            if (kandidat / "deu.traineddata").is_file():
+                return str(kandidat)
     return None  # dann greift Tesseracts eigener Suchpfad
 
 

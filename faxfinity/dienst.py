@@ -47,6 +47,9 @@ class Zustand:
     aktuelle_datei: str = ""
     letzter_lauf: str = ""
     letzter_fehler: str = ""
+    # Kein Fehler, sondern ein absichtliches Warten -- etwa während das
+    # Sprachmodell noch heruntergeladen wird.
+    wartegrund: str = ""
     wartende_dateien: int = 0
     verarbeitet_gesamt: int = 0
     naechster_lauf_in: int = 0
@@ -58,6 +61,7 @@ class Zustand:
             "aktuelle_datei": self.aktuelle_datei,
             "letzter_lauf": self.letzter_lauf,
             "letzter_fehler": self.letzter_fehler,
+            "wartegrund": self.wartegrund,
             "wartende_dateien": self.wartende_dateien,
             "verarbeitet_gesamt": self.verarbeitet_gesamt,
             "naechster_lauf_in": self.naechster_lauf_in,
@@ -144,11 +148,25 @@ class Einzelinstanzsperre:
 
 
 class Dienst:
-    def __init__(self, einstellungen: Einstellungen, protokoll: Journal, sperre: Path):
+    def __init__(
+        self,
+        einstellungen: Einstellungen,
+        protokoll: Journal,
+        sperre: Path,
+        warten_solange=None,
+    ):
+        """`warten_solange` sagt, ob gerade nichts angefasst werden darf.
+
+        Gebraucht wird das während des Modell-Downloads: ohne Sprachmodell
+        scheitert jede Auswertung, und nach fünf Anläufen legt der Dienst das
+        Fax unter "FAX_..." ab. Ausgerechnet in den ersten Minuten nach der
+        Installation wären das alle eintreffenden Faxe.
+        """
         self.einstellungen = einstellungen
         self.journal = protokoll
         self.sperre = Einzelinstanzsperre(sperre)
         self.zustand = Zustand()
+        self._warten_solange = warten_solange or (lambda: "")
 
         self._thread: threading.Thread | None = None
         self._stoppen = threading.Event()
@@ -161,10 +179,12 @@ class Dienst:
         if self._thread and self._thread.is_alive():
             return True
         if not self.sperre.belegen():
+            # Ohne eigene Fehlermeldung: ob das schlimm ist, weiß nur der
+            # Aufrufer. Beim zweiten Doppelklick auf die EXE ist es der
+            # Normalfall und soll nicht als Fehler im Protokoll stehen.
             self.zustand.letzter_fehler = (
                 "Ein anderer FaxFinity-Dienst läuft bereits für diesen Ordner"
             )
-            logger.error(self.zustand.letzter_fehler)
             return False
 
         self._stoppen.clear()
@@ -196,8 +216,13 @@ class Dienst:
     def _schleife(self) -> None:
         while not self._stoppen.is_set():
             try:
+                self.zustand.wartegrund = self._warten_solange() or ""
                 meldung = self.einstellungen.ordner_beanstanden()
-                if meldung:
+                if self.zustand.wartegrund:
+                    # Nichts anfassen, aber weiterzählen, damit die Oberfläche
+                    # zeigt, wie viel inzwischen wartet.
+                    self.zustand.wartende_dateien = len(self._bereite_dateien())
+                elif meldung:
                     # Nur bei Änderung melden, sonst läuft das Protokoll voll.
                     if self.zustand.letzter_fehler != meldung:
                         logger.warning("%s -- es wird nichts verarbeitet", meldung)
@@ -210,6 +235,10 @@ class Dienst:
                 self.zustand.letzter_fehler = str(fehler)
 
             takt = max(5, self.einstellungen.scan_intervall)
+            # Während einer Wartephase öfter nachsehen: sobald das Modell da
+            # ist, sollen die liegengebliebenen Faxe zügig drankommen.
+            if self.zustand.wartegrund:
+                takt = min(takt, 5)
             self.zustand.naechster_lauf_in = takt
             self._sofort.wait(timeout=takt)
             self._sofort.clear()

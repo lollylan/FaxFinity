@@ -6,6 +6,12 @@ eigenen Rechner — kein Patientendatum verlässt die Praxis.
 Aus `FAX2026_07_25_093424.pdf` wird
 `Rezeptanforderung_Stadtapotheke_Mustermann-Erika_2026-07-25.pdf`.
 
+> ### **[▸ FaxFinity herunterladen](https://github.com/lollylan/FaxFinity/releases/latest)**
+>
+> Windows, kein Python nötig. Entpacken, `FaxFinity.exe` doppelklicken.
+> Zusätzlich zu installieren ist nur [Ollama](https://ollama.com/download) —
+> das Sprachmodell holt FaxFinity von selbst.
+
 ---
 
 ## Was passiert mit einem Fax
@@ -59,7 +65,32 @@ Handwerkerrechnungen, Lieferantenpost, Behördenschreiben. Für die sind
 
 ## Einrichten
 
-Auf dem Rechner müssen vorhanden sein:
+FaxFinity gibt es in zwei Fassungen. Für eine Praxis ist die erste gedacht.
+
+### Fertige Fassung — nur eine Datei starten
+
+[Neueste Fassung herunterladen](https://github.com/lollylan/FaxFinity/releases/latest)
+(rund 110 MB), entpacken, den Ordner auf die Festplatte kopieren — nicht aus dem
+ZIP heraus starten — und **`FaxFinity.exe`** doppelklicken. Der Browser öffnet
+sich von selbst.
+
+Python, Tesseract und die deutschen Sprachdaten stecken mit im Paket. Zu
+installieren bleibt genau eines:
+
+| | |
+|---|---|
+| **Ollama** | [ollama.com/download](https://ollama.com/download) — herunterladen, installieren, fertig |
+
+**Das Sprachmodell holt FaxFinity selbst.** Fehlt es, steht das oben auf der
+Seite, mit Fortschrittsbalken — rund 5 GB, einmalig eine Viertelstunde. Ist
+Ollama installiert, läuft aber nicht, startet FaxFinity es. Ist es gar nicht
+installiert, steht dort ein Knopf zur Bezugsquelle; danach geht es ohne weiteres
+Zutun weiter.
+
+Faxe, die während des Herunterladens eintreffen, bleiben unangetastet liegen und
+werden verarbeitet, sobald das Modell da ist.
+
+### Mit Python — für Entwicklung und Anpassungen
 
 | | |
 |---|---|
@@ -67,19 +98,21 @@ Auf dem Rechner müssen vorhanden sein:
 | **Ollama** | [ollama.com](https://ollama.com) — danach `ollama pull qwen3:8b` |
 | **Tesseract** | wird von `Einrichten.bat` automatisch mitinstalliert |
 
-Dann:
-
 1. **`Einrichten.bat`** doppelklicken — prüft alles und installiert Fehlendes
 2. **`FaxFinity starten.bat`** doppelklicken — der Browser öffnet sich von selbst
-3. In der Oberfläche unter **Einstellungen** eintragen:
-   - **Eingangsordner** — wo die Faxe ankommen, z. B. `Z:\PegaMed\FAX-Import`
-   - **Ausgangsordner** — wohin die umbenannten Faxe sollen (siehe unten)
-   - **Archivordner** — wohin die Sicherungskopien sollen
-   - **Name der Praxis** — z. B. `Dr. med. Florian Rasche`
-   - **Anschrift** und **eigene Faxnummer**
 
-   Bei den drei Ordnerfeldern führt der Knopf **Durchsuchen** zu einer
-   Ordnerauswahl, in der sich durch Laufwerke und Unterordner klicken lässt.
+### In beiden Fassungen
+
+In der Oberfläche unter **Einstellungen** eintragen:
+
+- **Eingangsordner** — wo die Faxe ankommen, z. B. `Z:\PegaMed\FAX-Import`
+- **Ausgangsordner** — wohin die umbenannten Faxe sollen (siehe unten)
+- **Archivordner** — wohin die Sicherungskopien sollen
+- **Name der Praxis** — z. B. `Dr. med. Florian Rasche`
+- **Anschrift** und **eigene Faxnummer**
+
+Bei den drei Ordnerfeldern führt der Knopf **Durchsuchen** zu einer
+Ordnerauswahl, in der sich durch Laufwerke und Unterordner klicken lässt.
 
 Name, Anschrift und Faxnummer der Praxis sind wichtig: an ihnen erkennt
 FaxFinity den Empfängerblock und verhindert, dass die eigene Praxis als
@@ -88,21 +121,26 @@ Absender im Dateinamen landet.
 Einmal gespeicherte Einstellungen bleiben erhalten und werden bei jedem Start
 wieder geladen.
 
-Damit FaxFinity beim Hochfahren automatisch mitläuft:
-**`Autostart einrichten.bat`** ausführen.
-
 ---
 
 ## Bedienung
 
 Die Oberfläche liegt unter **http://127.0.0.1:8757** und zeigt
 
+- was noch einzurichten ist, solange etwas fehlt,
 - ob Eingangsordner, Texterkennung und Sprachmodell bereit sind,
 - was gerade verarbeitet wird und wie viel noch wartet,
 - die zuletzt abgelegten Faxe mit erkanntem Absender und Patient.
 
 Verarbeitet wird im Hintergrund. Der Browser darf jederzeit geschlossen werden —
-der Dienst läuft weiter.
+der Dienst läuft weiter. Ein zweiter Doppelklick auf `FaxFinity.exe` startet
+nichts doppelt, sondern holt die schon laufende Oberfläche wieder nach vorn.
+
+| Wo | Was |
+|---|---|
+| **beim Anmelden mitstarten** | Schalter unten im Kasten *Betrieb*. Legt eine Verknüpfung im Autostart-Ordner an; FaxFinity läuft dann ohne Fenster mit. In der Python-Fassung tut `Autostart einrichten.bat` dasselbe. |
+| **FaxFinity beenden** | Knopf unten rechts im Kasten *Betrieb*. Die EXE-Fassung hat kein Konsolenfenster, das sich schließen ließe. |
+| **Was schiefging** | `faxfinity.log` neben der Anwendung. Enthält Dateinamen und damit Patientennamen. |
 
 ### Ordner
 
@@ -137,7 +175,9 @@ Faxen:
 
 ```
 FaxFinity\
+├── FaxFinity.exe                 ← nur in der fertigen Fassung
 ├── einstellungen.json
+├── faxfinity.log                 ← was zuletzt passiert ist
 └── journal.jsonl                 ← lückenloses Protokoll (siehe unten)
 ```
 
@@ -145,11 +185,14 @@ FaxFinity\
 
 | Anzeige | Ursache |
 |---|---|
+| *Ollama ist nicht installiert* | Der Knopf daneben führt zur Bezugsquelle. Danach geht es von selbst weiter. |
 | *Ollama nicht erreichbar* | Ollama ist nicht gestartet. Faxe bleiben liegen und werden später erneut versucht — es geht nichts verloren. |
+| *Sprachmodell … fehlt* | Wird beim Start von selbst geladen. Der Knopf **Jetzt laden** stößt es erneut an. |
 | *Sprache „deu" fehlt* | Der Ordner `tessdata/best` fehlt oder ist unvollständig. |
 | *Eingangsordner nicht erreichbar* | Netzlaufwerk nicht verbunden. |
 | *Ausgangsordner darf nicht der Eingangsordner sein* | Ausgang und Eingang zeigen auf denselben Ordner. |
 | Viele `FAX_…`-Dateien | Faxqualität zu schlecht für die Texterkennung, oder das Sprachmodell antwortet nicht. |
+| Doppelklick tut nichts | FaxFinity läuft schon; der zweite Start öffnet nur die Oberfläche. Was sonst dagegenspricht, steht in `faxfinity.log`. |
 
 ---
 
@@ -165,6 +208,9 @@ FaxFinity\
   wohin es gegangen ist.
 - Ist Ollama vorübergehend nicht erreichbar, bleibt das Fax im Eingang liegen
   und wird erneut versucht — bis zu fünfmal, danach wird es mit `FAX_…` abgelegt.
+- Während das Sprachmodell heruntergeladen wird, ruht die Verarbeitung ganz.
+  Sonst verbrauchte jedes eintreffende Fax seine fünf Versuche und landete
+  ausgerechnet in den ersten Minuten nach der Installation unter `FAX_…`.
 - Ein inhaltsgleiches Fax wird erkannt und bekommt denselben Namen mit `_2`,
   statt ein zweites Mal ausgewertet zu werden.
 
@@ -174,9 +220,49 @@ FaxFinity\
 
 ```bash
 pip install -r requirements.txt
-python -m unittest discover        # 133 Tests
+python -m unittest discover        # 164 Tests
 python -m faxfinity                # Dienst und Oberfläche
 ```
+
+### Die weitergebbare Fassung bauen
+
+```bash
+python werkzeuge/exe_bauen.py
+```
+
+Ergebnis ist `dist/FaxFinity-<Fassung>-Windows.zip` — rund 280 MB, darin Python,
+alle Pakete, die Weboberfläche, die deutschen Sprachdaten und Tesseract.
+
+Tesseract wird aus der Installation des bauenden Rechners übernommen (Apache-2.0,
+Weitergabe erlaubt). Mitgenommen wird nur, was `tesseract.exe` wirklich braucht:
+die Importtabellen werden ausgelesen und ergeben 26 der 51 Bibliotheken im
+Programmordner — der Rest gehört zu den Trainingswerkzeugen. Es landet **neben**
+der EXE, nicht darin: gibt man es PyInstaller als Datenordner mit, legt der die
+DLLs zusätzlich in den Programmordner, und alles steckt zweimal im Paket.
+
+| Schalter | Wirkung |
+|---|---|
+| *(ohne)* | Programmordner mit `FaxFinity.exe` — startet am schnellsten |
+| `--einzeldatei` | Python und Pakete in die EXE selbst; startet spürbar langsamer |
+| `--ohne-tesseract` | ohne Texterkennung bauen, muss dann am Ziel installiert sein |
+| `--kein-archiv` | kein ZIP erzeugen |
+
+Ollama wird bewusst nicht mitgeliefert: es bringt über ein Gigabyte
+Grafikkartenbibliotheken mit und hält sich selbst aktuell — eine mitgelieferte
+Kopie wäre nach wenigen Monaten veraltet.
+
+### Mitgelieferte Fremdsoftware
+
+Im Paket stecken Tesseract OCR und Leptonica (Apache 2.0), die deutschen
+Sprachdaten aus `tessdata_best` (Apache 2.0), Python samt der Pakete aus
+`requirements.txt` sowie die Bibliotheken, die Tesseract zum Laufen braucht —
+unter anderem zlib, libpng, libjpeg, libtiff, libwebp, OpenJPEG, libarchive,
+OpenSSL und die Laufzeitbibliotheken von MinGW-w64.
+
+Die Lizenztexte liegen dem Paket bei: `LICENSE-Tesseract.txt` und `HERKUNFT.txt`
+im Ordner `tesseract`, die der Python-Pakete in `_internal` in den jeweiligen
+`.dist-info`-Ordnern. Das Bauwerkzeug bricht ab, wenn es die Lizenz nicht
+findet — ohne sie darf das Paket nicht weitergegeben werden.
 
 ### Aufbau
 
@@ -195,6 +281,8 @@ python -m faxfinity                # Dienst und Oberfläche
 | `dienst.py` | Ordnerüberwachung, Einzelinstanz-Sperre |
 | `server.py` | Weboberfläche und Schnittstelle |
 | `journal.py` | Protokoll und Duplikaterkennung |
+| `einrichtung.py` | Ollama starten, Sprachmodell nachladen |
+| `autostart.py` | Verknüpfung im Autostart-Ordner |
 
 ### Trefferquote messen
 
@@ -249,10 +337,17 @@ Aus dem Netz erreichbar: http://192.168.178.131:8757
 
 ## Datenschutz
 
-Texterkennung und Sprachmodell laufen auf dem Praxisrechner. Die einzige
-ausgehende Verbindung geht an Ollama unter `localhost:11434`. Die Weboberfläche
-lädt keine Schriftarten, Skripte oder Bilder aus dem Internet nach und
-funktioniert deshalb auch auf einem Rechner ohne Internetzugang.
+Texterkennung und Sprachmodell laufen auf dem Praxisrechner. Im laufenden
+Betrieb geht die einzige ausgehende Verbindung an Ollama unter
+`localhost:11434`. Die Weboberfläche lädt keine Schriftarten, Skripte oder
+Bilder aus dem Internet nach und funktioniert deshalb auch auf einem Rechner
+ohne Internetzugang.
+
+Die eine Ausnahme ist das Herunterladen des Sprachmodells: dabei holt Ollama
+das Modell aus dem Netz. Übertragen wird nur, welches Modell gewünscht ist —
+kein Fax, kein Name, kein Praxisdatum. Danach bleibt der Rechner wieder unter
+sich.
 
 Patientennamen stehen in den Dateinamen — der Zielordner gehört entsprechend
-geschützt.
+geschützt. Dasselbe gilt für `journal.jsonl` und `faxfinity.log` im
+Programmordner: auch dort stehen Dateinamen und damit Patientennamen.

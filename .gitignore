@@ -3,6 +3,8 @@
 einstellungen.json
 journal.jsonl
 faxfinity.lock
+faxfinity.log
+faxfinity.log.*
 config.json
 processing_log.json
 
