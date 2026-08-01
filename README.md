@@ -351,3 +351,17 @@ sich.
 Patientennamen stehen in den Dateinamen — der Zielordner gehört entsprechend
 geschützt. Dasselbe gilt für `journal.jsonl` und `faxfinity.log` im
 Programmordner: auch dort stehen Dateinamen und damit Patientennamen.
+
+---
+
+## Lizenz
+
+Der Quelltext von FaxFinity steht unter der [MIT-Lizenz](LICENSE) — benutzen,
+ändern und weitergeben ist ausdrücklich erlaubt.
+
+Das gilt für den eigenen Code. Die im fertigen Paket **mitgelieferte
+Fremdsoftware** — Tesseract, Leptonica, die Sprachdaten, Python samt Paketen und
+die zugehörigen Bibliotheken — behält ihre jeweils eigenen Lizenzen; die
+Lizenztexte liegen dem Paket bei (siehe oben). Wer nur den Quelltext aus diesem
+Repository verwendet, ist davon nicht betroffen: mitgeliefert wird nichts davon,
+alles wird beim Bauen vom eigenen Rechner geholt.
